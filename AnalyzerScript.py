@@ -56,11 +56,6 @@ class Player:
             "s_b": 0.0,
         }
 
-games = []
-players = []
-overs = []
-unders = []
-
 if datetime.now().hour >= 17:
     currDate = datetime.now().day + 2
 else:
@@ -85,11 +80,15 @@ props = {
 altprops = dict((v,k) for k,v in props.items())
 
 def analyze_future_odds():
+    games = []
+    players = []
+    overs = []
+    unders = []
     response = requests.get(f"https://api.sportradar.us/oddscomparison-player-props/trial/v2/en/competitions/sr:competition:132/schedules.json?api_key={config.nba_key}", headers={'Accept': 'application/json'})
     res_json = response.json()
     print('Today\'s games are:')
     for game in res_json['schedules']:
-        if game['sport_event']['start_time'][8:10] == str(currDate):
+        if (game['sport_event']['start_time'][8:10] == str(currDate)) or ((game['sport_event']['start_time'][8:10] == str(currDate-1)) and (int(game['sport_event']['start_time'][11]) > 0)):
             print(game['sport_event']['competitors'][0]['name'], "vs", game['sport_event']['competitors'][1]['name'])
             games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['id']))
     print('\n')
