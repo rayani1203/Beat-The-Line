@@ -1,7 +1,10 @@
-import csv
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+import time
 
-file = open('/Users/rayani1203/Downloads/picks.csv', 'w', encoding='UTF-8')
-writer  = csv.writer(file)
-header = ['Best Over Picks']
-header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate', 'Last 3W% Above Line', 'Last 3W% Avg']
-writer.writerows([header, header1])
+driver = webdriver.Chrome()
+driver.get("https://hashtagbasketball.com/nba-defense-vs-position")
+sg_button = driver.find_element(By.ID,"ContentPlaceHolder1_RBL1_1").click()
+time.sleep(5)
+driver.close()

@@ -4,13 +4,17 @@ import time
 from operator import attrgetter
 import csv
 import config
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 
 class Matchup:
-    def __init__(self, home, home_id, away, away_id, id):
+    def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
         self.home = home
-        self.home_id = home_id
+        self.home_id = home_id,
+        self.home_brief = home_brief
         self.away = away
         self.away_id = away_id
+        self.away_brief = away_brief
         self.id = id
 
 class Stat:
@@ -24,9 +28,13 @@ class Stat:
         self.spread_diff = 0.0
 
 class Player:
-    def __init__(self, name, id, points, rebounds, assists, threes, turnovers, steals, blocks, p_r, p_a, r_a, p_r_a, s_b):
+    def __init__(self, name, id, home, away, points, rebounds, assists, threes, turnovers, steals, blocks, p_r, p_a, r_a, p_r_a, s_b):
         self.name = name
-        self.id = id
+        self.sr_id = id
+        self.home = home,
+        self.away = away,
+        self.opposition = ""
+        self.position = ""
         self.points = points
         self.rebounds = rebounds
         self.assists = assists
@@ -86,11 +94,11 @@ def analyze_future_odds():
     unders = []
     response = requests.get(f"https://api.sportradar.us/oddscomparison-player-props/trial/v2/en/competitions/sr:competition:132/schedules.json?api_key={config.nba_key}", headers={'Accept': 'application/json'})
     res_json = response.json()
-    print('Today\'s games are:')
+    print('\nToday\'s games are:')
     for game in res_json['schedules']:
         if (game['sport_event']['start_time'][8:10] == str(currDate)) or ((game['sport_event']['start_time'][8:10] == str(currDate-1)) and (int(game['sport_event']['start_time'][11]) > 0)):
             print(game['sport_event']['competitors'][0]['name'], "vs", game['sport_event']['competitors'][1]['name'])
-            games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['id']))
+            games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][0]['abbreviation'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['competitors'][1]['abbreviation'], game['sport_event']['id']))
     print('\n')
     time.sleep(2)
     for game in games:
@@ -128,7 +136,7 @@ def analyze_future_odds():
                     lines[altprops[market['id']]].line = float(market['books'][0]['outcomes'][0]['total'])
                     lines[altprops[market['id']]].over = float(market['books'][0]['outcomes'][0]['odds_decimal'])
                     lines[altprops[market['id']]].under = float(market['books'][0]['outcomes'][1]['odds_decimal'])
-            players.append(Player(name, prop['player']['id'], lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
+            players.append(Player(name, prop['player']['id'], game.home_brief, game.away_brief, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
     print('\n')
     time.sleep(5)
 
@@ -151,6 +159,17 @@ def analyze_future_odds():
         success = False
         while not success:
             try:
+                response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
+                res_json = response.json()
+                success = True
+            except:
+                print("API request failed, trying again in 10 seconds")
+                time.sleep(10)
+        player.position = res_json['primary_position']
+
+        success = False
+        while not success:
+            try:
                 response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={player.name}", headers={'Accept': 'application/json'})
                 res_json = response.json()
                 success = True
@@ -163,6 +182,11 @@ def analyze_future_odds():
         data = all_data[0]
         player.id = data['id']
         player.team = data['team']['full_name']
+        if player.home[0] == data['team']['abbreviation']:
+            player.opposition = player.away[0]
+        else:
+            player.opposition = player.home[0]
+        print(player.opposition)
         print(f'Analyzing stats for {player.name} of the {player.team}...')
 
         success = False
