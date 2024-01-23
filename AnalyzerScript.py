@@ -5,12 +5,12 @@ from operator import attrgetter
 import csv
 import config
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
         self.home = home
-        self.home_id = home_id,
+        self.home_id = home_id
         self.home_brief = home_brief
         self.away = away
         self.away_id = away_id
@@ -26,13 +26,14 @@ class Stat:
         self.under = under
         self.hit = 0.0
         self.spread_diff = 0.0
+        self.defense = 0
 
 class Player:
     def __init__(self, name, id, home, away, points, rebounds, assists, threes, turnovers, steals, blocks, p_r, p_a, r_a, p_r_a, s_b):
         self.name = name
         self.sr_id = id
-        self.home = home,
-        self.away = away,
+        self.home = home
+        self.away = away
         self.opposition = ""
         self.position = ""
         self.points = points
@@ -86,6 +87,36 @@ props = {
     "s_b": "sr:market:8007",
 }
 altprops = dict((v,k) for k,v in props.items())
+
+stat_dic = {
+    "points": "PTS",
+    "assists": "AST",
+    "rebounds": "REB",
+    "threes": "3PM",
+    "steals": "STL",
+    "blocks": "BLK",
+    "turnovers": "TO",
+    "p": "PTS",
+    "r": "REB",
+    "a": "AST",
+    "s": "STL",
+}
+
+def web_crawl(opposition, position, stat, driver):
+    print(f"Crawling for {position} {stat} against {opposition}")
+    if stat in stat_dic.keys():
+        key = stat_dic[stat]
+    else:
+        key = stat_dic[stat[0]]
+    for button in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{key}')]]"):
+        try:
+            button.click()
+        except:
+            continue
+    for i, row in enumerate(driver.find_elements(By.CSS_SELECTOR, f".GC-0.{position}")):
+        cell = row.find_element(By.CSS_SELECTOR, ".left.team-cell")
+        if cell.text.split("\n")[0] == opposition:
+            return i+1
 
 def analyze_future_odds():
     games = []
@@ -155,6 +186,8 @@ def analyze_future_odds():
 
 
     print('-------------- Statistical Analysis of Recent Games --------------')
+    driver = webdriver.Chrome()
+    driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
     for player in players:
         success = False
         while not success:
@@ -182,11 +215,10 @@ def analyze_future_odds():
         data = all_data[0]
         player.id = data['id']
         player.team = data['team']['full_name']
-        if player.home[0] == data['team']['abbreviation']:
-            player.opposition = player.away[0]
+        if player.home == data['team']['abbreviation']:
+            player.opposition = player.away
         else:
-            player.opposition = player.home[0]
-        print(player.opposition)
+            player.opposition = player.home
         print(f'Analyzing stats for {player.name} of the {player.team}...')
 
         success = False
@@ -244,19 +276,26 @@ def analyze_future_odds():
 
         if game_count < 5:
             continue
-
+        print(player.position)
+        for elem in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{player.position}')]]"):
+            try:
+                elem.click()
+            except:
+                continue
         for stat in player.stats:
             player.stats[stat] /= game_count
             getattr(player, stat).hit /= game_count
             if getattr(player, stat).line == 0.0:
                 continue
             if getattr(player, stat).hit >= 0.7:
-                getattr(player, stat).spread_diff = player.stats[stat] 
+                getattr(player, stat).spread_diff = player.stats[stat]
+                getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
                 overs.append(getattr(player, stat))
             if getattr(player, stat).hit <= 0.3:
                 getattr(player, stat).spread_diff = player.stats[stat]
+                getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
                 unders.append(getattr(player, stat))
-    time.sleep(5)  
+    driver.close()
     print()  
 
     overs = sorted(overs, key=attrgetter('hit', 'spread_diff'), reverse=True)
@@ -265,19 +304,19 @@ def analyze_future_odds():
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-1}-picks.csv', 'w', encoding='UTF-8')
     writer  = csv.writer(file)
     header = ['Best Over Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print("--------------- Best Over Picks ---------------")
-    print("Pick                    | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg")
+    print("Pick                    | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg  |  Opp. Defense vs Pos")
     print()
     for stat in overs:
-        print(f"{stat.player} over {stat.line} {stat.stat} at {stat.over}        |    {round(stat.hit * 100, 1)}%     |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%   |    {round(stat.spread_diff, 1)}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1)])
+        print(f"{stat.player} over {stat.line} {stat.stat} at {stat.over}        |    {round(stat.hit * 100, 1)}%     |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%   |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
+        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense])
 
     writer.writerow([])
     header = ['Best Under Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print()
@@ -285,13 +324,12 @@ def analyze_future_odds():
     print("Pick                     | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg")
     print()
     for stat in unders:
-        print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1)])
+        print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
+        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense])
 
     print()
     print("--------------- Downloaded your picks as picks.csv in Downloads! ----------------")
     print()
-
     file.close()
 
 def analyze_past_picks():
