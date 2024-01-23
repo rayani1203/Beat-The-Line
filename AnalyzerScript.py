@@ -103,20 +103,35 @@ stat_dic = {
 }
 
 def web_crawl(opposition, position, stat, driver):
-    print(f"Crawling for {position} {stat} against {opposition}")
+    driver.execute_script("window.scrollTo(0, 0)")
     if stat in stat_dic.keys():
         key = stat_dic[stat]
     else:
         key = stat_dic[stat[0]]
     for button in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{key}')]]"):
+        if button.text == "FD PTS":
+            continue
         try:
             button.click()
         except:
             continue
+    try:
+        driver.find_element(By.CLASS_NAME, "tablesorter-headerSortUp")
+        return web_crawl(opposition, position, stat, driver)
+    except:
+        pass
     for i, row in enumerate(driver.find_elements(By.CSS_SELECTOR, f".GC-0.{position}")):
         cell = row.find_element(By.CSS_SELECTOR, ".left.team-cell")
-        if cell.text.split("\n")[0] == opposition:
+        if cell.text.split("\n")[1] == opposition or (opposition == "LA Clippers" and cell.text.split("\n")[1] == "Los Angeles Clippers"):
             return i+1
+    tags = driver.find_elements(By.CSS_SELECTOR, "a")
+    for elem in tags:
+        try:
+            if elem.text == position:
+                elem.click()
+        except:
+            continue
+    return web_crawl(opposition, position, stat, driver)
 
 def analyze_future_odds():
     games = []
@@ -167,7 +182,7 @@ def analyze_future_odds():
                     lines[altprops[market['id']]].line = float(market['books'][0]['outcomes'][0]['total'])
                     lines[altprops[market['id']]].over = float(market['books'][0]['outcomes'][0]['odds_decimal'])
                     lines[altprops[market['id']]].under = float(market['books'][0]['outcomes'][1]['odds_decimal'])
-            players.append(Player(name, prop['player']['id'], game.home_brief, game.away_brief, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
+            players.append(Player(name, prop['player']['id'], game.home, game.away, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
     print('\n')
     time.sleep(5)
 
@@ -215,7 +230,7 @@ def analyze_future_odds():
         data = all_data[0]
         player.id = data['id']
         player.team = data['team']['full_name']
-        if player.home == data['team']['abbreviation']:
+        if player.home == data['team']['full_name']:
             player.opposition = player.away
         else:
             player.opposition = player.home
@@ -276,10 +291,13 @@ def analyze_future_odds():
 
         if game_count < 5:
             continue
-        print(player.position)
-        for elem in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{player.position}')]]"):
+
+        driver.execute_script("window.scrollTo(0, 0)")
+        tags = driver.find_elements(By.CSS_SELECTOR, "a")
+        for elem in tags:
             try:
-                elem.click()
+                if elem.text == player.position:
+                    elem.click()
             except:
                 continue
         for stat in player.stats:
@@ -287,11 +305,11 @@ def analyze_future_odds():
             getattr(player, stat).hit /= game_count
             if getattr(player, stat).line == 0.0:
                 continue
-            if getattr(player, stat).hit >= 0.7:
+            if getattr(player, stat).hit > 0.7:
                 getattr(player, stat).spread_diff = player.stats[stat]
                 getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
                 overs.append(getattr(player, stat))
-            if getattr(player, stat).hit <= 0.3:
+            elif getattr(player, stat).hit < 0.3:
                 getattr(player, stat).spread_diff = player.stats[stat]
                 getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
                 unders.append(getattr(player, stat))
