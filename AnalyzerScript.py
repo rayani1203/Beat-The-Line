@@ -322,7 +322,7 @@ def analyze_future_odds():
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-1}-picks.csv', 'w', encoding='UTF-8')
     writer  = csv.writer(file)
     header = ['Best Over Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print("--------------- Best Over Picks ---------------")
@@ -334,12 +334,12 @@ def analyze_future_odds():
 
     writer.writerow([])
     header = ['Best Under Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print()
     print("--------------- Best Under Picks ---------------")
-    print("Pick                     | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg")
+    print("Pick                     | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg  |  Opp. Defense vs Pos")
     print()
     for stat in unders:
         print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
