@@ -179,9 +179,16 @@ def analyze_future_odds():
             }
             for market in prop['markets']:
                 if market['id'] in altprops.keys():
-                    lines[altprops[market['id']]].line = float(market['books'][0]['outcomes'][0]['total'])
-                    lines[altprops[market['id']]].over = float(market['books'][0]['outcomes'][0]['odds_decimal'])
-                    lines[altprops[market['id']]].under = float(market['books'][0]['outcomes'][1]['odds_decimal'])
+                    i = 0
+                    while True:
+                        try:
+                            lines[altprops[market['id']]].line = float(market['books'][i]['outcomes'][0]['total'])
+                            lines[altprops[market['id']]].over = float(market['books'][i]['outcomes'][0]['odds_decimal'])
+                            lines[altprops[market['id']]].under = float(market['books'][i]['outcomes'][1]['odds_decimal'])
+                            break
+                        except:
+                            i += 1
+                            continue;
             players.append(Player(name, prop['player']['id'], game.home, game.away, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
     print('\n')
     time.sleep(5)
@@ -301,18 +308,31 @@ def analyze_future_odds():
             except:
                 continue
         for stat in player.stats:
+            player_stat = getattr(player, stat)
             player.stats[stat] /= game_count
-            getattr(player, stat).hit /= game_count
-            if getattr(player, stat).line == 0.0:
+            player_stat.hit /= game_count
+            if player_stat.line == 0.0:
                 continue
-            if getattr(player, stat).hit > 0.7:
-                getattr(player, stat).spread_diff = player.stats[stat]
-                getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
-                overs.append(getattr(player, stat))
-            elif getattr(player, stat).hit < 0.3:
-                getattr(player, stat).spread_diff = player.stats[stat]
-                getattr(player, stat).defense = web_crawl(player.opposition, player.position, stat, driver)
-                unders.append(getattr(player, stat))
+            if player_stat.hit >= 0.7:
+                player_stat.spread_diff = player.stats[stat]
+                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                if player_stat.hit >= 0.875:
+                        overs.append(player_stat)
+                elif player_stat.over >= 1.5:
+                    if player_stat.defense > 15 and player_stat.hit >= 0.8:
+                        overs.append(player_stat)
+                    elif player_stat.defense >20 and player_stat.hit >= 0.7:
+                        overs.append(player_stat)
+            elif player_stat.hit <= 0.3:
+                player_stat.spread_diff = player.stats[stat]
+                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                if player_stat.hit <= 0.125:
+                    unders.append(player_stat)
+                elif player_stat.under >= 1.5:
+                    if player_stat.defense <=15 and player_stat.hit <= 0.2:
+                        unders.append(player_stat)
+                    elif player_stat.defense <= 10 and player_stat.hit <= 0.3:
+                        unders.append(player_stat)
     driver.close()
     print()  
 
