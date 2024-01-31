@@ -71,6 +71,16 @@ else:
     currDate = datetime.now().day + 1
 currMonth = datetime.now().month
 currYear = datetime.now().year
+if currDate > 31:
+    currMonth += 1
+    currDate -= 31
+currDateStr = str(currDate)
+if currDate - 1 < 1:
+    prevDateStr = str(currDate + 30)
+if currDate < 10:
+    currDateStr = '0' + currDateStr
+    if currDate - 1 >= 1:
+        prevDateStr = '0' + prevDateStr
 
 props = {
     "points": "sr:market:921",
@@ -142,7 +152,7 @@ def analyze_future_odds():
     res_json = response.json()
     print('\nToday\'s games are:')
     for game in res_json['schedules']:
-        if (game['sport_event']['start_time'][8:10] == str(currDate)) or ((game['sport_event']['start_time'][8:10] == str(currDate-1)) and (int(game['sport_event']['start_time'][11]) > 0)):
+        if (game['sport_event']['start_time'][8:10] == currDateStr) or ((game['sport_event']['start_time'][8:10] == prevDateStr) and (int(game['sport_event']['start_time'][11]) > 0)):
             print(game['sport_event']['competitors'][0]['name'], "vs", game['sport_event']['competitors'][1]['name'])
             games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][0]['abbreviation'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['competitors'][1]['abbreviation'], game['sport_event']['id']))
     print('\n')
