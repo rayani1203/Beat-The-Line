@@ -6,6 +6,7 @@ import csv
 import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from threading import Thread
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -50,6 +51,7 @@ class Player:
         self.s_b = s_b
         self.id = 0,
         self.team = "",
+        self.game_count = 0,
         self.stats = {
             "points": 0.0,
             "assists": 0.0,
@@ -77,6 +79,8 @@ if currDate > 31:
 currDateStr = str(currDate)
 if currDate - 1 < 1:
     prevDateStr = str(currDate + 30)
+else:
+    prevDateStr = str(currDate - 1)
 if currDate < 10:
     currDateStr = '0' + currDateStr
     if currDate - 1 >= 1:
@@ -142,6 +146,94 @@ def web_crawl(opposition, position, stat, driver):
         except:
             continue
     return web_crawl(opposition, position, stat, driver)
+    
+def player_thread(player, oldYear, oldMonth, oldDate):
+    success = False
+    while not success:
+        try:
+            response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
+            res_json = response.json()
+            success = True
+        except:
+            print("API request failed, trying again in 10 seconds")
+            time.sleep(10)
+    player.position = res_json['primary_position']
+
+    success = False
+    while not success:
+        try:
+            response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={player.name}", headers={'Accept': 'application/json'})
+            res_json = response.json()
+            success = True
+        except:
+            print("API request failed, trying again in 10 seconds")
+            time.sleep(10)
+    all_data = res_json['data']
+    if len(all_data) == 0:
+        return
+    data = all_data[0]
+    player.id = data['id']
+    player.team = data['team']['full_name']
+    if player.home == data['team']['full_name']:
+        player.opposition = player.away
+    else:
+        player.opposition = player.home
+    print(f'Analyzing stats for {player.name} of the {player.team}...')
+
+    success = False
+    while not success:
+        try:
+            response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonth}-{oldDate}")
+            res_json = response.json()
+            success = True
+        except:
+            print("API request failed, trying again in 10 seconds")
+            time.sleep(10)
+    data = res_json['data']
+    game_count = 0
+    for game in data:
+        if float(game['min']) < 10:
+            continue
+        game_count += 1
+        player.stats['points'] += game['pts']
+        player.stats['assists'] += game['ast']
+        player.stats['rebounds'] += game['reb']
+        player.stats['threes'] += game['fg3m']
+        player.stats['steals'] += game['stl']
+        player.stats['blocks'] += game['blk']
+        player.stats['turnovers'] += game['turnover']
+        player.stats['p_r'] += game['pts'] + game['reb']
+        player.stats['p_a'] += game['pts'] + game['ast']
+        player.stats['r_a'] += game['ast'] + game['reb']
+        player.stats['p_r_a'] += game['pts'] + game['reb'] + game['ast']
+        player.stats['s_b'] += game['stl'] + game['blk']
+
+        if game['pts'] > player.points.line:
+            player.points.hit += 1
+        if game['ast'] > player.assists.line:
+            player.assists.hit += 1
+        if game['reb'] > player.rebounds.line:
+            player.rebounds.hit += 1
+        if game['fg3m'] > player.threes.line:
+            player.threes.hit += 1
+        if game['stl'] > player.steals.line:
+            player.steals.hit += 1
+        if game['blk'] > player.blocks.line:
+            player.blocks.hit += 1
+        if game['turnover'] > player.turnovers.line:
+            player.turnovers.hit += 1
+        if game['pts'] + game['reb'] > player.p_r.line:
+            player.p_r.hit += 1
+        if game['pts'] + game['ast'] > player.p_a.line:
+            player.p_a.hit += 1
+        if game['reb'] + game['ast'] > player.r_a.line:
+            player.r_a.hit += 1
+        if game['pts'] + game['ast'] + game['reb'] > player.p_r_a.line:
+            player.p_r_a.hit += 1
+        if game['stl'] + game['blk'] > player.s_b.line:
+            player.s_b.hit += 1
+
+    player.game_count = game_count
 
 def analyze_future_odds():
     games = []
@@ -220,95 +312,17 @@ def analyze_future_odds():
     print('-------------- Statistical Analysis of Recent Games --------------')
     driver = webdriver.Chrome()
     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
+    threads = []
     for player in players:
-        success = False
-        while not success:
-            try:
-                response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
-                res_json = response.json()
-                success = True
-            except:
-                print("API request failed, trying again in 10 seconds")
-                time.sleep(10)
-        player.position = res_json['primary_position']
+        thread = Thread(target=player_thread, args=(player, oldYear, oldMonth, oldDate))
+        threads.append(thread)
+        thread.start()
+    for thread in threads:
+        thread.join()
 
-        success = False
-        while not success:
-            try:
-                response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={player.name}", headers={'Accept': 'application/json'})
-                res_json = response.json()
-                success = True
-            except:
-                print("API request failed, trying again in 10 seconds")
-                time.sleep(10)
-        all_data = res_json['data']
-        if len(all_data) == 0:
+    for player in players:
+        if player.game_count <= 5:
             continue
-        data = all_data[0]
-        player.id = data['id']
-        player.team = data['team']['full_name']
-        if player.home == data['team']['full_name']:
-            player.opposition = player.away
-        else:
-            player.opposition = player.home
-        print(f'Analyzing stats for {player.name} of the {player.team}...')
-
-        success = False
-        while not success:
-            try:
-                response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonth}-{oldDate}")
-                res_json = response.json()
-                success = True
-            except:
-                print("API request failed, trying again in 10 seconds")
-                time.sleep(10)
-        data = res_json['data']
-        game_count = 0
-        for game in data:
-            if float(game['min']) < 10:
-                continue
-            game_count += 1
-            player.stats['points'] += game['pts']
-            player.stats['assists'] += game['ast']
-            player.stats['rebounds'] += game['reb']
-            player.stats['threes'] += game['fg3m']
-            player.stats['steals'] += game['stl']
-            player.stats['blocks'] += game['blk']
-            player.stats['turnovers'] += game['turnover']
-            player.stats['p_r'] += game['pts'] + game['reb']
-            player.stats['p_a'] += game['pts'] + game['ast']
-            player.stats['r_a'] += game['ast'] + game['reb']
-            player.stats['p_r_a'] += game['pts'] + game['reb'] + game['ast']
-            player.stats['s_b'] += game['stl'] + game['blk']
-
-            if game['pts'] > player.points.line:
-                player.points.hit += 1
-            if game['ast'] > player.assists.line:
-                player.assists.hit += 1
-            if game['reb'] > player.rebounds.line:
-                player.rebounds.hit += 1
-            if game['fg3m'] > player.threes.line:
-                player.threes.hit += 1
-            if game['stl'] > player.steals.line:
-                player.steals.hit += 1
-            if game['blk'] > player.blocks.line:
-                player.blocks.hit += 1
-            if game['turnover'] > player.turnovers.line:
-                player.turnovers.hit += 1
-            if game['pts'] + game['reb'] > player.p_r.line:
-                player.p_r.hit += 1
-            if game['pts'] + game['ast'] > player.p_a.line:
-                player.p_a.hit += 1
-            if game['reb'] + game['ast'] > player.r_a.line:
-                player.r_a.hit += 1
-            if game['pts'] + game['ast'] + game['reb'] > player.p_r_a.line:
-                player.p_r_a.hit += 1
-            if game['stl'] + game['blk'] > player.s_b.line:
-                player.s_b.hit += 1
-
-        if game_count < 5:
-            continue
-
         driver.execute_script("window.scrollTo(0, 0)")
         tags = driver.find_elements(By.CSS_SELECTOR, "a")
         for elem in tags:
@@ -319,8 +333,8 @@ def analyze_future_odds():
                 continue
         for stat in player.stats:
             player_stat = getattr(player, stat)
-            player.stats[stat] /= game_count
-            player_stat.hit /= game_count
+            player.stats[stat] /= player.game_count
+            player_stat.hit /= player.game_count
             if player_stat.line == 0.0:
                 continue
             if player_stat.hit >= 0.7:
@@ -328,20 +342,20 @@ def analyze_future_odds():
                 player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
                 if player_stat.hit >= 0.875:
                         overs.append(player_stat)
-                elif player_stat.over >= 1.5:
-                    if player_stat.defense > 15 and player_stat.hit >= 0.8:
+                elif player_stat.over >= 1.7:
+                    if player_stat.defense > 10 and player_stat.hit >= 0.8:
                         overs.append(player_stat)
-                    elif player_stat.defense >20 and player_stat.hit >= 0.7:
+                    elif player_stat.defense >15 and player_stat.hit >= 0.7:
                         overs.append(player_stat)
             elif player_stat.hit <= 0.3:
                 player_stat.spread_diff = player.stats[stat]
                 player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
                 if player_stat.hit <= 0.125:
                     unders.append(player_stat)
-                elif player_stat.under >= 1.5:
-                    if player_stat.defense <=15 and player_stat.hit <= 0.2:
+                elif player_stat.under >= 1.7:
+                    if player_stat.defense <=20 and player_stat.hit <= 0.2:
                         unders.append(player_stat)
-                    elif player_stat.defense <= 10 and player_stat.hit <= 0.3:
+                    elif player_stat.defense <= 15 and player_stat.hit <= 0.3:
                         unders.append(player_stat)
     driver.close()
     print()  
@@ -381,41 +395,224 @@ def analyze_future_odds():
     file.close()
 
 def analyze_past_picks():
-    picked_balance = 0.0
-    total_balance = 0.0
+    balance = 0.0
+    won = []
+    lost = []
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', encoding='UTF-8')
     reader  = csv.reader(file)
     for row in reader:
-        success = False
-        while not success:
-            try:
-                response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
-                res_json = response.json()
-                success = True
-            except:
-                print("API request failed, trying again in 10 seconds")
-                time.sleep(10)
-        all_data = res_json['data']
-        if len(all_data) == 0:
+        print(row)
+        if row[0] == 'Pick Results:':
+            break
+        if len(row) < 8:
             continue
-        data = all_data[0]
-        player_id = data['id']
-        success = False
-        while not success:
-            try:
-                response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{currDate-2}")
-                res_json = response.json()
-                success = True
-            except:
-                print("API request failed, trying again in 10 seconds")
-                time.sleep(10)
-        data = res_json['data'][0]
-        # if row[4] >= 70:
-        #     if row[1] == 'points':
-                
-        # elif row[4] <= 30:
+        if row[8].capitalize() == 'Y':
+            success = False
+            while not success:
+                try:
+                    response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
+                    res_json = response.json()
+                    success = True
+                except:
+                    print("API request failed, trying again in 10 seconds")
+                    time.sleep(10)
+            all_data = res_json['data']
+            if len(all_data) == 0:
+                continue
+            data = all_data[0]
+            player_id = data['id']
+            success = False
+            while not success:
+                try:
+                    response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{currDate-2}")
+                    res_json = response.json()
+                    success = True
+                except:
+                    print("API request failed, trying again in 10 seconds")
+                    time.sleep(10)
+            data = res_json['data'][0]
+            match row[1]:
+                case 'points':
+                    if float(row[4]) >= 70:
+                        if data['pts'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['pts'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'assists':
+                    if float(row[4]) >= 70:
+                        if data['ast'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['ast'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'rebounds':
+                    if float(row[4]) >= 70:
+                        if data['reb'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['reb'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'threes':
+                    if float(row[4]) >= 70:
+                        if data['fg3m'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['fg3m'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'steals':
+                    if float(row[4]) >= 70:
+                        if data['stl'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['stl'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'blocks':
+                    if float(row[4]) >= 70:
+                        if data['blk'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['blk'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'turnovers':
+                    if float(row[4]) >= 70:
+                        if data['turnover'] > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if data['turnover'] > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'S/B':
+                    if float(row[4]) >= 70:
+                        if (data['stl'] + data['blk']) > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if (data['stl'] + data['blk']) > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'P/R':
+                    if float(row[4]) >= 70:
+                        if (data['pts'] + data['reb']) > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if (data['pts'] + data['reb']) > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'P/A':
+                    if float(row[4]) >= 70:
+                        if (data['pts'] + data['ast']) > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if (data['pts'] + data['ast']) > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'R/A':
+                    if float(row[4]) >= 70:
+                        if (data['reb'] + data['ast']) > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if (data['reb'] + data['ast']) > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                case 'P/R/A':
+                    if float(row[4]) >= 70:
+                        if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+                        else:
+                            lost.append(row)
+                    else:
+                        if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
+                            lost.append(row)
+                        else:
+                            won.append(row)
+                            balance += (float(row[3]) - 1)
+    file.close()
+    file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', 'a')
+    
+    writer = csv.writer(file)
+    writer.writerow([])
+    balance -= len(lost)
+    writer.writerow(['Pick Results:', f'Net: {round(balance, 2)} units'])
+    writer.writerow(['Winning Bets:'])
+    for row in won:
+        if float(row[4]) >= 70:
+            row.insert(1, 'over')
+        else:
+            row.insert(1, 'under')
+        writer.writerow(row)
+    writer.writerow([])
+    writer.writerow(['Losing Bets:'])
+    for row in lost:
+        if float(row[4]) >= 70:
+            row.insert(1, 'over')
+        else:
+            row.insert(1, 'under')
+        writer.writerow(row)
 
-        # if row[7].capitalize() == 'Y':
+    file.close()
+
 
 
 
