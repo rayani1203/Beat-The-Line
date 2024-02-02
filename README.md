@@ -1,0 +1,1 @@
+Python3 multithreaded script to compare historical NBA player stats to their daily lines and compile a list of the best daily picks. Also capable of analyzing past picks from a previously generated spreadsheet.
