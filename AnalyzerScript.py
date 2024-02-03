@@ -6,7 +6,7 @@ import csv
 import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from threading import Thread
+from threading import Thread, Lock
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -51,7 +51,7 @@ class Player:
         self.s_b = s_b
         self.id = 0,
         self.team = "",
-        self.game_count = 0,
+        self.game_count = 0
         self.stats = {
             "points": 0.0,
             "assists": 0.0,
@@ -116,6 +116,8 @@ stat_dic = {
     "s": "STL",
 }
 
+apiMutex = Lock()
+
 def web_crawl(opposition, position, stat, driver):
     driver.execute_script("window.scrollTo(0, 0)")
     if stat in stat_dic.keys():
@@ -151,12 +153,15 @@ def player_thread(player, oldYear, oldMonth, oldDate):
     success = False
     while not success:
         try:
-            response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
-            res_json = response.json()
-            success = True
+            with apiMutex:
+                time.sleep(1.5)
+                response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
+                res_json = response.json()
+                success = True
+                break
         except:
-            print("API request failed, trying again in 10 seconds")
-            time.sleep(10)
+            print("API request failed, trying again in 7 seconds")
+            time.sleep(7)
     player.position = res_json['primary_position']
 
     success = False
@@ -166,7 +171,7 @@ def player_thread(player, oldYear, oldMonth, oldDate):
             res_json = response.json()
             success = True
         except:
-            print("API request failed, trying again in 10 seconds")
+            print("balldontlie API request failed, trying again in 10 seconds")
             time.sleep(10)
     all_data = res_json['data']
     if len(all_data) == 0:
@@ -244,7 +249,7 @@ def analyze_future_odds():
     res_json = response.json()
     print('\nToday\'s games are:')
     for game in res_json['schedules']:
-        if (game['sport_event']['start_time'][8:10] == currDateStr) or ((game['sport_event']['start_time'][8:10] == prevDateStr) and (int(game['sport_event']['start_time'][11]) > 0)):
+        if ((game['sport_event']['start_time'][8:10] == currDateStr) and (int(game['sport_event']['start_time'][11]) == 0)) or ((game['sport_event']['start_time'][8:10] == prevDateStr) and (int(game['sport_event']['start_time'][11]) > 0)):
             print(game['sport_event']['competitors'][0]['name'], "vs", game['sport_event']['competitors'][1]['name'])
             games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][0]['abbreviation'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['competitors'][1]['abbreviation'], game['sport_event']['id']))
     print('\n')
@@ -279,10 +284,10 @@ def analyze_future_odds():
                 "p_r_a": Stat(0.0, 0.0, 0.0, "P/R/A", name),
                 "s_b": Stat(0.0, 0.0, 0.0, "S/B", name)
             }
+            i = 0
             for market in prop['markets']:
                 if market['id'] in altprops.keys():
-                    i = 0
-                    while True:
+                    while True and i < 10:
                         try:
                             lines[altprops[market['id']]].line = float(market['books'][i]['outcomes'][0]['total'])
                             lines[altprops[market['id']]].over = float(market['books'][i]['outcomes'][0]['odds_decimal'])
@@ -291,7 +296,8 @@ def analyze_future_odds():
                         except:
                             i += 1
                             continue;
-            players.append(Player(name, prop['player']['id'], game.home, game.away, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
+            if i < 10:
+                players.append(Player(name, prop['player']['id'], game.home, game.away, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
     print('\n')
     time.sleep(5)
 
