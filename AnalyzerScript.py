@@ -154,7 +154,7 @@ def player_thread(player, oldYear, oldMonth, oldDate):
     while not success:
         try:
             with apiMutex:
-                time.sleep(1.5)
+                time.sleep(1)
                 response = requests.get(f"http://api.sportradar.us/nba/trial/v8/en/players/{player.sr_id}/profile.json?api_key={config.player_key}", headers={'Accept': 'application/json'})
                 res_json = response.json()
                 success = True
