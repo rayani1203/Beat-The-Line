@@ -317,11 +317,7 @@ def analyze_future_odds():
             games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][0]['abbreviation'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['competitors'][1]['abbreviation'], game['sport_event']['id']))
     print('\n')
     time.sleep(2)
-    j = 0
     for game in games:
-        j += 1
-        if j > 1:
-            break
         success = False
         while not success:
             try:
@@ -387,11 +383,7 @@ def analyze_future_odds():
     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
     threads = []
     playerResults = []
-    i = 0
     for player in players:
-        i += 1
-        if i >= 4:
-            break
         thread = Thread(target=player_thread, args=(player, oldYear, oldMonth, oldDate, playerResults))
         threads.append(thread)
         thread.start()
