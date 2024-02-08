@@ -6,7 +6,7 @@ import csv
 import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from threading import Thread, Lock
+from threading import Thread, Lock, Semaphore
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -117,6 +117,11 @@ stat_dic = {
 }
 
 apiMutex = Lock()
+countLock = Lock()
+global counter
+counter = 0
+global done
+done = False
 
 def web_crawl(opposition, position, stat, driver):
     driver.execute_script("window.scrollTo(0, 0)")
@@ -125,7 +130,7 @@ def web_crawl(opposition, position, stat, driver):
     else:
         key = stat_dic[stat[0]]
     for button in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{key}')]]"):
-        if button.text == "FD PTS":
+        if button.text == "FD PTS" or button.text == "":
             continue
         try:
             button.click()
@@ -149,7 +154,7 @@ def web_crawl(opposition, position, stat, driver):
             continue
     return web_crawl(opposition, position, stat, driver)
     
-def player_thread(player, oldYear, oldMonth, oldDate):
+def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     success = False
     while not success:
         try:
@@ -239,6 +244,64 @@ def player_thread(player, oldYear, oldMonth, oldDate):
             player.s_b.hit += 1
 
     player.game_count = game_count
+    with countLock:    
+        global counter
+        playerResults.append(player)
+        counter += 1
+
+def worker_thread(playerResults, driver, overs, unders):
+    global done
+    while not done:
+        global counter
+        while counter < 1 and not done:
+            continue
+        with countLock:
+            player = playerResults.pop(0)
+            counter -= 1
+        if player.game_count <= 5:
+            continue
+        print(f'Web crawling for defensive stats for {player.name} of the {player.team}...')
+        driver.execute_script("window.scrollTo(0, 0)")
+        tags = driver.find_elements(By.CSS_SELECTOR, "a")
+        for elem in tags:
+            try:
+                if elem.text == player.position:
+                    elem.click()
+            except:
+                continue
+        defenses = []
+        for stat in player.stats:
+            player_stat = getattr(player, stat)
+            player.stats[stat] /= player.game_count
+            player_stat.hit /= player.game_count
+            if player_stat.line == 0.0:
+                continue
+            if player_stat.hit >= 0.7:
+                player_stat.spread_diff = player.stats[stat]
+                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                defenses.append(player_stat.defense)
+                if player_stat.hit >= 0.875:
+                        overs.append(player_stat)
+                elif player_stat.over >= 1.7:
+                    if player_stat.defense > 10 and player_stat.hit >= 0.8:
+                        overs.append(player_stat)
+                    elif player_stat.defense >15 and player_stat.hit >= 0.7:
+                        overs.append(player_stat)
+            elif player_stat.hit <= 0.3:
+                player_stat.spread_diff = player.stats[stat]
+                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                defenses.append(player_stat.defense)
+                if player_stat.hit <= 0.125:
+                    unders.append(player_stat)
+                elif player_stat.under >= 1.7:
+                    if player_stat.defense <=20 and player_stat.hit <= 0.2:
+                        unders.append(player_stat)
+                    elif player_stat.defense <= 15 and player_stat.hit <= 0.3:
+                        unders.append(player_stat)
+            if len(defenses) > 0:
+                if defenses.count(defenses[0]) > 5:
+                    "------------------ Web crawling error, restarting script... ------------------"
+                    return analyze_future_odds();
 
 def analyze_future_odds():
     games = []
@@ -254,7 +317,11 @@ def analyze_future_odds():
             games.append(Matchup(game['sport_event']['competitors'][0]['name'], game['sport_event']['competitors'][0]['id'], game['sport_event']['competitors'][0]['abbreviation'], game['sport_event']['competitors'][1]['name'], game['sport_event']['competitors'][1]['id'], game['sport_event']['competitors'][1]['abbreviation'], game['sport_event']['id']))
     print('\n')
     time.sleep(2)
+    j = 0
     for game in games:
+        j += 1
+        if j > 1:
+            break
         success = False
         while not success:
             try:
@@ -299,7 +366,7 @@ def analyze_future_odds():
             if i < 10:
                 players.append(Player(name, prop['player']['id'], game.home, game.away, lines['points'], lines['rebounds'], lines['assists'], lines['threes'],lines['turnovers'], lines['steals'], lines['blocks'], lines['p_r'], lines['p_a'], lines['r_a'], lines['p_r_a'], lines['s_b']))
     print('\n')
-    time.sleep(5)
+    time.sleep(2.5)
 
     oldDate = currDate - 21
     if oldDate < 1:
@@ -319,52 +386,26 @@ def analyze_future_odds():
     driver = webdriver.Chrome()
     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
     threads = []
+    playerResults = []
+    i = 0
     for player in players:
-        thread = Thread(target=player_thread, args=(player, oldYear, oldMonth, oldDate))
+        i += 1
+        if i >= 4:
+            break
+        thread = Thread(target=player_thread, args=(player, oldYear, oldMonth, oldDate, playerResults))
         threads.append(thread)
         thread.start()
+
+    consumer = Thread(target=worker_thread, args=(playerResults, driver, overs, unders))
+    consumer.start()
+    
     for thread in threads:
         thread.join()
-
-    for player in players:
-        if player.game_count <= 5:
-            continue
-        driver.execute_script("window.scrollTo(0, 0)")
-        tags = driver.find_elements(By.CSS_SELECTOR, "a")
-        for elem in tags:
-            try:
-                if elem.text == player.position:
-                    elem.click()
-            except:
-                continue
-        for stat in player.stats:
-            player_stat = getattr(player, stat)
-            player.stats[stat] /= player.game_count
-            player_stat.hit /= player.game_count
-            if player_stat.line == 0.0:
-                continue
-            if player_stat.hit >= 0.7:
-                player_stat.spread_diff = player.stats[stat]
-                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
-                if player_stat.hit >= 0.875:
-                        overs.append(player_stat)
-                elif player_stat.over >= 1.7:
-                    if player_stat.defense > 10 and player_stat.hit >= 0.8:
-                        overs.append(player_stat)
-                    elif player_stat.defense >15 and player_stat.hit >= 0.7:
-                        overs.append(player_stat)
-            elif player_stat.hit <= 0.3:
-                player_stat.spread_diff = player.stats[stat]
-                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
-                if player_stat.hit <= 0.125:
-                    unders.append(player_stat)
-                elif player_stat.under >= 1.7:
-                    if player_stat.defense <=20 and player_stat.hit <= 0.2:
-                        unders.append(player_stat)
-                    elif player_stat.defense <= 15 and player_stat.hit <= 0.3:
-                        unders.append(player_stat)
+    global done
+    done = True
+    consumer.join()
     driver.close()
-    print()  
+    print()
 
     overs = sorted(overs, key=attrgetter('hit', 'spread_diff'), reverse=True)
     unders = sorted(unders, key=attrgetter('hit', 'spread_diff'))
@@ -439,6 +480,7 @@ def analyze_past_picks():
             data = res_json['data'][0]
             match row[1]:
                 case 'points':
+                    row.append(data['pts'])
                     if float(row[4]) >= 70:
                         if data['pts'] > float(row[2]):
                             won.append(row)
@@ -452,6 +494,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'assists':
+                    row.append(data['ast'])
                     if float(row[4]) >= 70:
                         if data['ast'] > float(row[2]):
                             won.append(row)
@@ -465,6 +508,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'rebounds':
+                    row.append(data['reb'])
                     if float(row[4]) >= 70:
                         if data['reb'] > float(row[2]):
                             won.append(row)
@@ -478,6 +522,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'threes':
+                    row.append(data['fg3m'])
                     if float(row[4]) >= 70:
                         if data['fg3m'] > float(row[2]):
                             won.append(row)
@@ -491,6 +536,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'steals':
+                    row.append(data['stl'])
                     if float(row[4]) >= 70:
                         if data['stl'] > float(row[2]):
                             won.append(row)
@@ -504,6 +550,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'blocks':
+                    row.append(data['blk'])
                     if float(row[4]) >= 70:
                         if data['blk'] > float(row[2]):
                             won.append(row)
@@ -517,6 +564,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'turnovers':
+                    row.append(data['turnover'])
                     if float(row[4]) >= 70:
                         if data['turnover'] > float(row[2]):
                             won.append(row)
@@ -530,6 +578,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'S/B':
+                    row.append(data['stl'] + data['blk'])
                     if float(row[4]) >= 70:
                         if (data['stl'] + data['blk']) > float(row[2]):
                             won.append(row)
@@ -543,6 +592,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'P/R':
+                    row.append(data['pts'] + data['reb'])
                     if float(row[4]) >= 70:
                         if (data['pts'] + data['reb']) > float(row[2]):
                             won.append(row)
@@ -556,6 +606,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'P/A':
+                    row.append(data['pts'] + data['ast'])
                     if float(row[4]) >= 70:
                         if (data['pts'] + data['ast']) > float(row[2]):
                             won.append(row)
@@ -569,6 +620,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'R/A':
+                    row.append(data['ast'] + data['reb'])
                     if float(row[4]) >= 70:
                         if (data['reb'] + data['ast']) > float(row[2]):
                             won.append(row)
@@ -582,6 +634,7 @@ def analyze_past_picks():
                             won.append(row)
                             balance += (float(row[3]) - 1)
                 case 'P/R/A':
+                    row.append(data['pts'] + data['reb'] + data['ast'])
                     if float(row[4]) >= 70:
                         if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
                             won.append(row)
