@@ -22,6 +22,13 @@ stat = 'threes'
 def web_crawl(opposition, position, stat):
     driver = webdriver.Chrome()
     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
+    button = driver.find_element(By.CLASS_NAME, "onetrust-close-btn-handler")
+    while True:
+        try:
+            button.click()
+            break
+        except:
+            print("Closing button on driver failed...")
     driver.execute_script("window.scrollTo(0, 0)")
     tags = driver.find_elements(By.CSS_SELECTOR, "a")
     for elem in tags:

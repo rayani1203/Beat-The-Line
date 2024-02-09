@@ -6,7 +6,8 @@ import csv
 import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from threading import Thread, Lock, Semaphore
+from threading import Thread, Lock
+import asyncio
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -144,6 +145,7 @@ def web_crawl(opposition, position, stat, driver):
     for i, row in enumerate(driver.find_elements(By.CSS_SELECTOR, f".GC-0.{position}")):
         cell = row.find_element(By.CSS_SELECTOR, ".left.team-cell")
         if cell.text.split("\n")[1] == opposition or (opposition == "LA Clippers" and cell.text.split("\n")[1] == "Los Angeles Clippers"):
+            print(f"{opposition} defense is {i+1} against {position} {stat}")
             return i+1
     tags = driver.find_elements(By.CSS_SELECTOR, "a")
     for elem in tags:
@@ -251,8 +253,8 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
 
 def worker_thread(playerResults, driver, overs, unders):
     global done
-    while not done:
-        global counter
+    global counter
+    while not done or counter > 0:
         while counter < 1 and not done:
             continue
         with countLock:
@@ -278,30 +280,35 @@ def worker_thread(playerResults, driver, overs, unders):
                 continue
             if player_stat.hit >= 0.7:
                 player_stat.spread_diff = player.stats[stat]
-                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
-                defenses.append(player_stat.defense)
                 if player_stat.hit >= 0.875:
+                        player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                        defenses.append(player_stat.defense)
                         overs.append(player_stat)
                 elif player_stat.over >= 1.7:
+                    player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                    defenses.append(player_stat.defense)
                     if player_stat.defense > 10 and player_stat.hit >= 0.8:
                         overs.append(player_stat)
                     elif player_stat.defense >15 and player_stat.hit >= 0.7:
                         overs.append(player_stat)
             elif player_stat.hit <= 0.3:
                 player_stat.spread_diff = player.stats[stat]
-                player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
-                defenses.append(player_stat.defense)
                 if player_stat.hit <= 0.125:
+                    player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                    defenses.append(player_stat.defense)
                     unders.append(player_stat)
                 elif player_stat.under >= 1.7:
+                    player_stat.defense = web_crawl(player.opposition, player.position, stat, driver)
+                    defenses.append(player_stat.defense)
                     if player_stat.defense <=20 and player_stat.hit <= 0.2:
                         unders.append(player_stat)
                     elif player_stat.defense <= 15 and player_stat.hit <= 0.3:
                         unders.append(player_stat)
-            if len(defenses) > 0:
+        if len(defenses) > 0:
                 if defenses.count(defenses[0]) > 5:
-                    "------------------ Web crawling error, restarting script... ------------------"
-                    return analyze_future_odds();
+                    print("------------------ Web crawling error, restarting script... ------------------")
+                    print(defenses)
+                    return analyze_future_odds()
 
 def analyze_future_odds():
     games = []
@@ -381,6 +388,13 @@ def analyze_future_odds():
     print('-------------- Statistical Analysis of Recent Games --------------')
     driver = webdriver.Chrome()
     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
+    button = driver.find_element(By.CLASS_NAME, "onetrust-close-btn-handler")
+    while True:
+        try:
+            button.click()
+            break
+        except:
+            print("Closing button on driver failed...")
     threads = []
     playerResults = []
     for player in players:
