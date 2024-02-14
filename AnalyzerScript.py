@@ -7,7 +7,6 @@ import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from threading import Thread, Lock
-import asyncio
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
