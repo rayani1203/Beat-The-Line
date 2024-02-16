@@ -1,5 +1,5 @@
 import requests
-from datetime import date, datetime
+from datetime import datetime
 import time
 from operator import attrgetter
 import csv
