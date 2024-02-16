@@ -678,8 +678,6 @@ def analyze_past_picks():
     file.close()
 
 
-
-
 input("Hello and welcome to Rayan's Odds Analyzer, your friendly neighborhood script designed to help you beat the odds every day!\nTo continue, press Enter.\n")
 res = input("Select whether you'd like to analyze future odds(f), or analyze returns on past picks(p)\n")
 match res:
