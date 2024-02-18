@@ -7,6 +7,7 @@ import config
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from threading import Thread, Lock
+import os
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -122,6 +123,7 @@ global counter
 counter = 0
 global done
 done = False
+balance = 0.0
 
 def web_crawl(opposition, position, stat, driver):
     driver.execute_script("window.scrollTo(0, 0)")
@@ -446,8 +448,205 @@ def analyze_future_odds():
     print()
     file.close()
 
+def analyze_row(row, won, lost, date):
+    time.sleep(1)
+    global balance
+    success = False
+    while not success:
+        try:
+            response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
+            res_json = response.json()
+            success = True
+        except:
+            print("API request failed, trying again in 10 seconds")
+            time.sleep(10)
+    all_data = res_json['data']
+    if len(all_data) == 0:
+        return
+    data = all_data[0]
+    player_id = data['id']
+    success = False
+    while not success:
+        try:
+            response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{date}&end_date={currYear}-{currMonth}-{date}")
+            res_json = response.json()
+            success = True
+        except:
+            print("API request failed, trying again in 10 seconds")
+            time.sleep(10)
+    data = res_json['data'][0]
+    match row[1]:
+        case 'points':
+            row.append(data['pts'])
+            if float(row[4]) >= 70:
+                if data['pts'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['pts'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'assists':
+            row.append(data['ast'])
+            if float(row[4]) >= 70:
+                if data['ast'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['ast'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'rebounds':
+            row.append(data['reb'])
+            if float(row[4]) >= 70:
+                if data['reb'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['reb'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'threes':
+            row.append(data['fg3m'])
+            if float(row[4]) >= 70:
+                if data['fg3m'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['fg3m'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'steals':
+            row.append(data['stl'])
+            if float(row[4]) >= 70:
+                if data['stl'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['stl'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'blocks':
+            row.append(data['blk'])
+            if float(row[4]) >= 70:
+                if data['blk'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['blk'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'turnovers':
+            row.append(data['turnover'])
+            if float(row[4]) >= 70:
+                if data['turnover'] > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if data['turnover'] > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'S/B':
+            row.append(data['stl'] + data['blk'])
+            if float(row[4]) >= 70:
+                if (data['stl'] + data['blk']) > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if (data['stl'] + data['blk']) > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'P/R':
+            row.append(data['pts'] + data['reb'])
+            if float(row[4]) >= 70:
+                if (data['pts'] + data['reb']) > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if (data['pts'] + data['reb']) > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'P/A':
+            row.append(data['pts'] + data['ast'])
+            if float(row[4]) >= 70:
+                if (data['pts'] + data['ast']) > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if (data['pts'] + data['ast']) > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'R/A':
+            row.append(data['ast'] + data['reb'])
+            if float(row[4]) >= 70:
+                if (data['reb'] + data['ast']) > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if (data['reb'] + data['ast']) > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+        case 'P/R/A':
+            row.append(data['pts'] + data['reb'] + data['ast'])
+            if float(row[4]) >= 70:
+                if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+                else:
+                    lost.append(row)
+            else:
+                if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
+                    lost.append(row)
+                else:
+                    won.append(row)
+                    balance += (float(row[3]) - 1)
+
 def analyze_past_picks():
-    balance = 0.0
+    global balance
     won = []
     lost = []
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', encoding='UTF-8')
@@ -459,199 +658,7 @@ def analyze_past_picks():
         if len(row) < 8:
             continue
         if row[8].capitalize() == 'Y':
-            success = False
-            while not success:
-                try:
-                    response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
-                    res_json = response.json()
-                    success = True
-                except:
-                    print("API request failed, trying again in 10 seconds")
-                    time.sleep(10)
-            all_data = res_json['data']
-            if len(all_data) == 0:
-                continue
-            data = all_data[0]
-            player_id = data['id']
-            success = False
-            while not success:
-                try:
-                    response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{currDate-2}")
-                    res_json = response.json()
-                    success = True
-                except:
-                    print("API request failed, trying again in 10 seconds")
-                    time.sleep(10)
-            data = res_json['data'][0]
-            match row[1]:
-                case 'points':
-                    row.append(data['pts'])
-                    if float(row[4]) >= 70:
-                        if data['pts'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['pts'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'assists':
-                    row.append(data['ast'])
-                    if float(row[4]) >= 70:
-                        if data['ast'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['ast'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'rebounds':
-                    row.append(data['reb'])
-                    if float(row[4]) >= 70:
-                        if data['reb'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['reb'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'threes':
-                    row.append(data['fg3m'])
-                    if float(row[4]) >= 70:
-                        if data['fg3m'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['fg3m'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'steals':
-                    row.append(data['stl'])
-                    if float(row[4]) >= 70:
-                        if data['stl'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['stl'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'blocks':
-                    row.append(data['blk'])
-                    if float(row[4]) >= 70:
-                        if data['blk'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['blk'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'turnovers':
-                    row.append(data['turnover'])
-                    if float(row[4]) >= 70:
-                        if data['turnover'] > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if data['turnover'] > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'S/B':
-                    row.append(data['stl'] + data['blk'])
-                    if float(row[4]) >= 70:
-                        if (data['stl'] + data['blk']) > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if (data['stl'] + data['blk']) > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'P/R':
-                    row.append(data['pts'] + data['reb'])
-                    if float(row[4]) >= 70:
-                        if (data['pts'] + data['reb']) > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if (data['pts'] + data['reb']) > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'P/A':
-                    row.append(data['pts'] + data['ast'])
-                    if float(row[4]) >= 70:
-                        if (data['pts'] + data['ast']) > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if (data['pts'] + data['ast']) > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'R/A':
-                    row.append(data['ast'] + data['reb'])
-                    if float(row[4]) >= 70:
-                        if (data['reb'] + data['ast']) > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if (data['reb'] + data['ast']) > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                case 'P/R/A':
-                    row.append(data['pts'] + data['reb'] + data['ast'])
-                    if float(row[4]) >= 70:
-                        if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
-                        else:
-                            lost.append(row)
-                    else:
-                        if (data['pts'] + data['reb'] + data['ast']) > float(row[2]):
-                            lost.append(row)
-                        else:
-                            won.append(row)
-                            balance += (float(row[3]) - 1)
+            analyze_row(row, won, lost, currDate-2)
     file.close()
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', 'a')
     
@@ -677,11 +684,71 @@ def analyze_past_picks():
 
     file.close()
 
+def add_dataset():
+    stat_num = {
+        "points": 1,
+        "assists": 2,
+        "rebounds": 3,
+        "threes": 4,
+        "steals": 5,
+        "blocks": 6,
+        "turnovers": 7,
+        "P/R": 8,
+        "P/A": 9,
+        "R/A": 10,
+        "P/R/A": 11,
+        "S/B": 12
+    }
+
+
+    date = input("Enter the date of the sheet (this month) you'd like to add to the allpicks database\n")
+    while not date.isdigit() or int(date) > 31 or int(date) < 1:
+        date = input("Please enter a valid numerical value for the date to be analyzed\n")
+    while not os.path.isfile(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv"):
+        date = input("The specified date does not exist as a sheet, please enter another\n")
+
+    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'r')
+    reader  = csv.reader(file)
+    allfile = open("/Users/rayani1203/Downloads/allpicks.csv", "a", )
+    allwriter = csv.writer(allfile)
+
+    won = []
+    lost = []
+
+    for row in reader:
+        print(row)
+        if len(row) < 8:
+            continue
+        if row[0] == 'Pick Results:':
+            break
+        analyze_row(row, won, lost, date)
+    
+    allwriter.writerow([])
+    
+    for row in won:
+        del row[3]
+        del row[0]
+        del row[1]
+        row.pop()
+        row[0] = stat_num[row[0]]
+        row.append('1')
+        allwriter.writerow(row)
+    for row in lost:
+        del row[3]
+        del row[0]
+        del row[1]
+        row.pop()
+        row[0] = stat_num[row[0]]
+        row.append('0')
+        allwriter.writerow(row)
+
 
 input("Hello and welcome to Rayan's Odds Analyzer, your friendly neighborhood script designed to help you beat the odds every day!\nTo continue, press Enter.\n")
-res = input("Select whether you'd like to analyze future odds(f), or analyze returns on past picks(p)\n")
+res = input("Select whether you'd like to analyze future odds(f), analyze returns on past picks(p), or add a previous dataset to the learning database(a)\n")
 match res:
     case 'f':
         analyze_future_odds()
     case 'p':
         analyze_past_picks()
+    case 'a':
+        add_dataset()
