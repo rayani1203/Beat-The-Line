@@ -452,14 +452,18 @@ def analyze_row(row, won, lost, date):
     time.sleep(1)
     global balance
     success = False
-    while not success:
+    count = 0
+    while not success and count < 3:
         try:
             response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
             res_json = response.json()
             success = True
         except:
+            count += 1
             print("API request failed, trying again in 10 seconds")
             time.sleep(10)
+    if count == 3:
+        return
     all_data = res_json['data']
     if len(all_data) == 0:
         return
@@ -474,7 +478,11 @@ def analyze_row(row, won, lost, date):
         except:
             print("API request failed, trying again in 10 seconds")
             time.sleep(10)
-    data = res_json['data'][0]
+    try:
+        data = res_json['data'][0]
+    except:
+        print(f"Failed to retrieve data for {row[0]}, continuing...")
+        return
     match row[1]:
         case 'points':
             row.append(data['pts'])
@@ -709,21 +717,26 @@ def add_dataset():
 
     file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'r')
     reader  = csv.reader(file)
-    allfile = open("/Users/rayani1203/Downloads/allpicks.csv", "a", )
-    allwriter = csv.writer(allfile)
+    oversfile = open("/Users/rayani1203/Downloads/alloverpicks.csv", "a", )
+    overswriter = csv.writer(oversfile)
+    undersfile = open("/Users/rayani1203/Downloads/allunderpicks.csv", "a", )
+    underswriter = csv.writer(undersfile)
 
     won = []
     lost = []
 
     for row in reader:
-        print(row)
-        if len(row) < 8:
+        if len(row) < 1:
             continue
         if row[0] == 'Pick Results:':
             break
+        if len(row) < 8:
+            continue
+        print(row)
         analyze_row(row, won, lost, date)
     
-    allwriter.writerow([])
+    overswriter.writerow([])
+    underswriter.writerow([])
     
     for row in won:
         del row[3]
@@ -732,7 +745,10 @@ def add_dataset():
         row.pop()
         row[0] = stat_num[row[0]]
         row.append('1')
-        allwriter.writerow(row)
+        if float(row[1]) >= 70:
+            overswriter.writerow(row)
+        else:
+            underswriter.writerow(row)
     for row in lost:
         del row[3]
         del row[0]
@@ -740,7 +756,10 @@ def add_dataset():
         row.pop()
         row[0] = stat_num[row[0]]
         row.append('0')
-        allwriter.writerow(row)
+        if float(row[1]) >= 70:
+            overswriter.writerow(row)
+        else:
+            underswriter.writerow(row)
 
 
 input("Hello and welcome to Rayan's Odds Analyzer, your friendly neighborhood script designed to help you beat the odds every day!\nTo continue, press Enter.\n")

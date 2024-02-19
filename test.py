@@ -1,11 +1,30 @@
 # from selenium import webdriver
 # from selenium.webdriver.common.by import By
 import pandas
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+import matplotlib.pyplot as plt
 
-file = open("/Users/rayani1203/Downloads/allpicks.csv", "r")
+overdf = pandas.read_csv("/Users/rayani1203/Downloads/alloverpicks.csv")
+underdf = pandas.read_csv("/Users/rayani1203/Downloads/allunderpicks.csv")
 
-df = pandas.read_csv("/Users/rayani1203/Downloads/allpicks.csv")
-print(df)
+stat_headers = ['Stat Key', 'Hit Rate', '3W% vs Spread', '3W Average', 'Defense Rank']
+
+overstats = overdf[stat_headers]
+overresults = overdf['Hit?']
+
+understats = underdf[stat_headers]
+underresults = underdf['Hit?']
+
+overdtree = DecisionTreeClassifier()
+overdtree = overdtree.fit(overstats, overresults)
+tree.plot_tree(overdtree, feature_names=stat_headers)
+plt.savefig("/Users/rayani1203/Downloads/overdecisiontree.pdf")
+
+underdtree = DecisionTreeClassifier()
+underdtree = underdtree.fit(understats, underresults)
+tree.plot_tree(underdtree, feature_names=stat_headers)
+plt.savefig("/Users/rayani1203/Downloads/underdecisiontree.pdf")
 
 # stat_dic = {
 #     "points": "PTS",
