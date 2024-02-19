@@ -175,7 +175,7 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     success = False
     while not success:
         try:
-            response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={player.name}", headers={'Accept': 'application/json'})
+            response = requests.get(f"https://api.balldontlie.io/v1/players/?search={player.name}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
@@ -196,7 +196,7 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     success = False
     while not success:
         try:
-            response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonth}-{oldDate}")
+            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonth}-{oldDate}", headers={'Authorization': {config.ball_key}})
             res_json = response.json()
             success = True
         except:
@@ -455,7 +455,7 @@ def analyze_row(row, won, lost, date):
     count = 0
     while not success and count < 3:
         try:
-            response = requests.get(f"https://www.balldontlie.io/api/v1/players/?search={row[0]}", headers={'Accept': 'application/json'})
+            response = requests.get(f"https://api.balldontlie.io/v1/players/?search={row[0]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
@@ -472,7 +472,7 @@ def analyze_row(row, won, lost, date):
     success = False
     while not success:
         try:
-            response = requests.get(f"https://www.balldontlie.io/api/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{date}&end_date={currYear}-{currMonth}-{date}")
+            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{date}&end_date={currYear}-{currMonth}-{date}", headers={'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
