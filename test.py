@@ -1,8 +1,8 @@
-# from selenium import webdriver
-# from selenium.webdriver.common.by import By
 import pandas
 from sklearn import tree
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 import matplotlib.pyplot as plt
 
 overdf = pandas.read_csv("/Users/rayani1203/Downloads/alloverpicks.csv")
@@ -16,69 +16,21 @@ overresults = overdf['Hit?']
 understats = underdf[stat_headers]
 underresults = underdf['Hit?']
 
-overdtree = DecisionTreeClassifier()
-overdtree = overdtree.fit(overstats, overresults)
+overstats_train, overstats_test, overresults_train, overresults_test = train_test_split(overstats, overresults, test_size=0.2)
+understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
+
+overdtree = DecisionTreeClassifier(criterion='gini')
+overdtree = overdtree.fit(overstats_train, overresults_train)
 tree.plot_tree(overdtree, feature_names=stat_headers)
 plt.savefig("/Users/rayani1203/Downloads/overdecisiontree.pdf")
+over_predictions = overdtree.predict(overstats_test)
 
-underdtree = DecisionTreeClassifier()
-underdtree = underdtree.fit(understats, underresults)
+
+underdtree = DecisionTreeClassifier(criterion='gini')
+underdtree = underdtree.fit(understats_train, underresults_train)
 tree.plot_tree(underdtree, feature_names=stat_headers)
 plt.savefig("/Users/rayani1203/Downloads/underdecisiontree.pdf")
+under_predictions = underdtree.predict(understats_test)
 
-# stat_dic = {
-#     "points": "PTS",
-#     "assists": "AST",
-#     "rebounds": "REB",
-#     "threes": "3PM",
-#     "steals": "STL",
-#     "blocks": "BLK",
-#     "turnovers": "TO",
-#     "p": "PTS",
-#     "r": "REB",
-#     "a": "AST",
-#     "s": "STL",
-# }
-
-# opposition = 'Utah Jazz'
-# pos = 'SG'
-# stat = 'threes'
-
-# def web_crawl(opposition, position, stat):
-#     driver = webdriver.Chrome()
-#     driver.get("https://www.fantasypros.com/daily-fantasy/nba/fanduel-defense-vs-position.php")
-#     button = driver.find_element(By.CLASS_NAME, "onetrust-close-btn-handler")
-#     while True:
-#         try:
-#             button.click()
-#             break
-#         except:
-#             print("Closing button on driver failed...")
-#     driver.execute_script("window.scrollTo(0, 0)")
-#     tags = driver.find_elements(By.CSS_SELECTOR, "a")
-#     for elem in tags:
-#         try:
-#             if elem.text == position:
-#                 elem.click()
-#         except:
-#             continue
-#     if stat in stat_dic.keys():
-#         key = stat_dic[stat]
-#     else:
-#         key = stat_dic[stat[0]]
-#     for button in driver.find_elements(By.XPATH, f"//*[text()[contains(.,'{key}')]]"):
-#         if button.text == "FD PTS":
-#             continue
-#         try:
-#             button.click()
-#         except:
-#             continue
-#     for i, row in enumerate(driver.find_elements(By.CSS_SELECTOR, f".GC-0.{position}")):
-#         cell = row.find_element(By.CSS_SELECTOR, ".left.team-cell")
-#         if cell.text.split("\n")[1] == opposition:
-#             return i+1
-#         else:
-#             print(cell.text.split("\n")[0])
-#     driver.close()
-
-# print(web_crawl(opposition, pos, stat))
+print("Over accuracy is: ", accuracy_score(over_predictions, overresults_test)*100)
+print("Under accuracy is: ", accuracy_score(under_predictions, underresults_test)*100)

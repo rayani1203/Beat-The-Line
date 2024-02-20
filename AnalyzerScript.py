@@ -77,7 +77,9 @@ currYear = datetime.now().year
 if currDate > 31:
     currMonth += 1
     currDate -= 31
+
 currDateStr = str(currDate)
+currMonthStr = str(currMonth)
 if currDate - 1 < 1:
     prevDateStr = str(currDate + 30)
 else:
@@ -86,6 +88,9 @@ if currDate < 10:
     currDateStr = '0' + currDateStr
     if currDate - 1 >= 1:
         prevDateStr = '0' + prevDateStr
+if currMonth < 10:
+    currMonthStr = '0' + currMonthStr
+
 
 props = {
     "points": "sr:market:921",
@@ -173,9 +178,12 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     player.position = res_json['primary_position']
 
     success = False
+    name_list = player.split()
+    if len(name_list) < 2:
+        return
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/players/?search={player.name}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
+            response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
@@ -193,10 +201,18 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
         player.opposition = player.home
     print(f'Analyzing stats for {player.name} of the {player.team}...')
 
+    oldMonthStr = str(oldMonth)
+    oldDateStr = str(oldDate)
+
+    if len(oldMonthStr) < 2:
+        oldMonthStr = '0' + oldMonthStr
+    if len(oldDateStr) < 2:
+        oldDateStr = '0' + oldDateStr
+
     success = False
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonth}-{oldDate}", headers={'Authorization': {config.ball_key}})
+            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonthStr}-{oldDateStr}", headers={'Authorization': {config.ball_key}})
             res_json = response.json()
             success = True
         except:
@@ -453,9 +469,12 @@ def analyze_row(row, won, lost, date):
     global balance
     success = False
     count = 0
+    name_list = row[0].split()
+    if len(name_list) < 2:
+        return
     while not success and count < 3:
-        try:
-            response = requests.get(f"https://api.balldontlie.io/v1/players/?search={row[0]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
+        try:            
+            response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
@@ -470,9 +489,14 @@ def analyze_row(row, won, lost, date):
     data = all_data[0]
     player_id = data['id']
     success = False
+
+    dateStr = str(date)
+    if len(dateStr) < 2:
+        dateStr = '0' + dateStr
+
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonth}-{date}&end_date={currYear}-{currMonth}-{date}", headers={'Authorization': config.ball_key})
+            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonthStr}-{dateStr}&end_date={currYear}-{currMonthStr}-{dateStr}", headers={'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
