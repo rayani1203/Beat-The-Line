@@ -8,6 +8,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from threading import Thread, Lock
 import os
+import pandas
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -122,6 +128,22 @@ stat_dic = {
     "s": "STL",
 }
 
+stat_num = {
+    "points": 1,
+    "assists": 2,
+    "rebounds": 3,
+    "threes": 4,
+    "steals": 5,
+    "blocks": 6,
+    "turnovers": 7,
+    "P/R": 8,
+    "P/A": 9,
+    "R/A": 10,
+    "P/R/A": 11,
+    "S/B": 12
+}
+
+
 apiMutex = Lock()
 countLock = Lock()
 global counter
@@ -129,6 +151,95 @@ counter = 0
 global done
 done = False
 balance = 0.0
+
+def find_best_ML_models():
+    overdf = pandas.read_csv("/Users/rayani1203/Downloads/alloverpicks.csv")
+    underdf = pandas.read_csv("/Users/rayani1203/Downloads/allunderpicks.csv")
+
+    stat_headers = ['Stat Key', 'Hit Rate', '3W% vs Spread', '3W Average', 'Defense Rank']
+
+    overstats = overdf[stat_headers]
+    overresults = overdf['Hit?']
+
+    understats = underdf[stat_headers]
+    underresults = underdf['Hit?']
+
+    overstats_train, overstats_test, overresults_train, overresults_test = train_test_split(overstats, overresults, test_size=0.2)
+    understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
+
+    max_over_accuracy = 0
+    best_over_depth = 0
+    best_over_samples = 0
+    retry_count = 0
+    over_accuracy = 0
+    while retry_count < 10:
+        overstats_train, overstats_test, overresults_train, overresults_test = train_test_split(overstats, overresults, test_size=0.2)
+        max_depth = 5
+        min_samples = 1
+        while max_depth < 40:
+            min_samples = 1
+            while min_samples < 40:
+                overdtree = DecisionTreeClassifier(criterion='gini', min_samples_leaf=min_samples, max_depth=max_depth, random_state=0)
+                overdtree = overdtree.fit(overstats_train, overresults_train)
+                over_predictions = overdtree.predict(overstats_test)
+                over_accuracy = accuracy_score(over_predictions, overresults_test)*100
+
+                if over_accuracy > max_over_accuracy:
+                    max_over_accuracy = over_accuracy
+                    best_over_samples = min_samples
+                    if max_depth != best_over_depth:
+                        best_over_depth = max_depth
+
+                min_samples += 1
+            max_depth += 1
+        retry_count += 1
+
+    retry_count = 0
+    under_accuracy = 0
+    best_under_depth = 0
+    best_under_samples = 0
+    max_under_accuracy = 0
+    while retry_count < 10:
+        understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
+        max_depth = 5
+        min_samples = 1
+        while max_depth < 40:
+            min_samples = 1
+            while min_samples < 40:
+                underdtree = DecisionTreeClassifier(criterion='gini', min_samples_leaf=min_samples, max_depth=max_depth, random_state=0)
+                underdtree = underdtree.fit(understats_train, underresults_train)
+                under_predictions = underdtree.predict(understats_test)
+                under_accuracy = accuracy_score(under_predictions, underresults_test)*100
+
+                if under_accuracy > max_under_accuracy:
+                    max_under_accuracy = under_accuracy
+                    best_under_samples = min_samples
+                    if max_depth != best_under_depth:
+                        best_under_depth = max_depth
+
+                min_samples += 1
+            max_depth += 1
+        retry_count += 1
+
+    print("Over accuracy is: ", max_over_accuracy, " at depth: ", best_over_depth, " and samples: ", best_over_samples)
+    print("Under accuracy is: ", max_under_accuracy, " at depth: ", best_under_depth, " and samples: ", best_under_samples)
+
+    best_over_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=best_over_samples, max_depth=best_over_depth, random_state=0)
+    best_over_model = best_over_model.fit(overstats.values, overresults)
+
+    best_under_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=best_under_samples, max_depth=best_under_depth, random_state=0)
+    best_under_model = best_under_model.fit(understats.values, underresults)
+
+    tree.plot_tree(best_over_model, feature_names=stat_headers)
+    plt.savefig("/Users/rayani1203/Downloads/overdecisiontree.pdf")
+
+    tree.plot_tree(best_under_model, feature_names=stat_headers)
+    plt.savefig("/Users/rayani1203/Downloads/underdecisiontree.pdf")
+
+    return {
+        "over": best_over_model,
+        "under": best_under_model
+    }
 
 def web_crawl(opposition, position, stat, driver):
     driver.execute_script("window.scrollTo(0, 0)")
@@ -178,7 +289,7 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     player.position = res_json['primary_position']
 
     success = False
-    name_list = player.split()
+    name_list = player.name.split()
     if len(name_list) < 2:
         return
     while not success:
@@ -212,7 +323,7 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     success = False
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonthStr}-{oldDateStr}", headers={'Authorization': {config.ball_key}})
+            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonthStr}-{oldDateStr}", headers={'Authorization': config.ball_key})
             res_json = response.json()
             success = True
         except:
@@ -433,22 +544,28 @@ def analyze_future_odds():
     overs = sorted(overs, key=attrgetter('hit', 'spread_diff'), reverse=True)
     unders = sorted(unders, key=attrgetter('hit', 'spread_diff'))
 
+    print("************** Please wait, building the optimal ML model ***************")
+    ML_dic = find_best_ML_models()
+    over_model = ML_dic['over']
+    under_model = ML_dic['under']
+
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-1}-picks.csv', 'w', encoding='UTF-8')
     writer  = csv.writer(file)
     header = ['Best Over Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'ML prediction %', 'Expected return', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print("--------------- Best Over Picks ---------------")
     print("Pick                    | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg  |  Opp. Defense vs Pos")
     print()
     for stat in overs:
+        prediction_val = round(over_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
         print(f"{stat.player} over {stat.line} {stat.stat} at {stat.over}        |    {round(stat.hit * 100, 1)}%     |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%   |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense])
+        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, prediction_val, round(prediction_val/100*stat.over, 2)])
 
     writer.writerow([])
     header = ['Best Under Picks']
-    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'Bet (Y)?']
+    header1 = ['Player', 'Stat', 'Line', 'Odds', 'Last 3W Hit Rate%', 'Last 3W% Above Line', 'Last 3W Avg', 'Opp. Defense vs Position in Stat', 'ML prediction %', 'Expected Return', 'Bet (Y)?']
     writer.writerows([header, header1])
 
     print()
@@ -456,9 +573,9 @@ def analyze_future_odds():
     print("Pick                     | Last 3W Hit Rate  | Last 3W % Above Line | Last 3W Avg  |  Opp. Defense vs Pos")
     print()
     for stat in unders:
+        prediction_val = round(under_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
         print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense])
-
+        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, prediction_val, round(prediction_val/100*stat.under, 2)])
     print()
     print("--------------- Downloaded your picks as picks.csv in Downloads! ----------------")
     print()
@@ -689,7 +806,7 @@ def analyze_past_picks():
             break
         if len(row) < 8:
             continue
-        if row[8].capitalize() == 'Y':
+        if row[10].capitalize() == 'Y':
             analyze_row(row, won, lost, currDate-2)
     file.close()
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', 'a')
@@ -717,22 +834,6 @@ def analyze_past_picks():
     file.close()
 
 def add_dataset():
-    stat_num = {
-        "points": 1,
-        "assists": 2,
-        "rebounds": 3,
-        "threes": 4,
-        "steals": 5,
-        "blocks": 6,
-        "turnovers": 7,
-        "P/R": 8,
-        "P/A": 9,
-        "R/A": 10,
-        "P/R/A": 11,
-        "S/B": 12
-    }
-
-
     date = input("Enter the date of the sheet (this month) you'd like to add to the allpicks database\n")
     while not date.isdigit() or int(date) > 31 or int(date) < 1:
         date = input("Please enter a valid numerical value for the date to be analyzed\n")
@@ -767,6 +868,8 @@ def add_dataset():
         del row[0]
         del row[1]
         row.pop()
+        row.pop()
+        row.pop()
         row[0] = stat_num[row[0]]
         row.append('1')
         if float(row[1]) >= 70:
@@ -777,6 +880,8 @@ def add_dataset():
         del row[3]
         del row[0]
         del row[1]
+        row.pop()
+        row.pop()
         row.pop()
         row[0] = stat_num[row[0]]
         row.append('0')
