@@ -513,6 +513,10 @@ def analyze_future_odds():
     print('\n')
     time.sleep(2.5)
 
+    if len(players) == 0:
+        print('---------------------- No games today, come back again tomorrow! -----------------------')
+        return
+
     oldDate = currDate - 21
     if oldDate < 1:
         oldMonth = currMonth - 1
