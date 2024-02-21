@@ -170,9 +170,11 @@ def find_best_ML_models():
     max_over_accuracy = 0
     best_over_depth = 0
     best_over_samples = 0
+    second_over_depth = 0
+    second_over_samples = 0
     retry_count = 0
     over_accuracy = 0
-    while retry_count < 10:
+    while retry_count < 5:
         overstats_train, overstats_test, overresults_train, overresults_test = train_test_split(overstats, overresults, test_size=0.2)
         max_depth = 5
         min_samples = 1
@@ -186,8 +188,10 @@ def find_best_ML_models():
 
                 if over_accuracy > max_over_accuracy:
                     max_over_accuracy = over_accuracy
+                    second_over_samples = best_over_samples
                     best_over_samples = min_samples
                     if max_depth != best_over_depth:
+                        second_over_depth = best_over_depth
                         best_over_depth = max_depth
 
                 min_samples += 1
@@ -198,8 +202,10 @@ def find_best_ML_models():
     under_accuracy = 0
     best_under_depth = 0
     best_under_samples = 0
+    second_under_depth = 0
+    second_under_samples = 0
     max_under_accuracy = 0
-    while retry_count < 10:
+    while retry_count < 5:
         understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
         max_depth = 5
         min_samples = 1
@@ -213,22 +219,28 @@ def find_best_ML_models():
 
                 if under_accuracy > max_under_accuracy:
                     max_under_accuracy = under_accuracy
+                    second_under_samples = best_under_samples
                     best_under_samples = min_samples
                     if max_depth != best_under_depth:
+                        second_under_depth = best_under_depth
                         best_under_depth = max_depth
 
                 min_samples += 1
             max_depth += 1
         retry_count += 1
 
-    print("Over accuracy is: ", max_over_accuracy, " at depth: ", best_over_depth, " and samples: ", best_over_samples)
-    print("Under accuracy is: ", max_under_accuracy, " at depth: ", best_under_depth, " and samples: ", best_under_samples)
+    print("Over accuracy is: ", max_over_accuracy, " at depth: ", best_over_depth, " and samples: ", best_over_samples, "\nand second is: ", second_over_depth, " and: ", second_over_samples)
+    print("Under accuracy is: ", max_under_accuracy, " at depth: ", best_under_depth, " and samples: ", best_under_samples, "\nand second is: ", second_under_depth, " and: ", second_under_samples)
 
     best_over_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=best_over_samples, max_depth=best_over_depth, random_state=0)
     best_over_model = best_over_model.fit(overstats.values, overresults)
+    second_over_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=second_over_samples, max_depth=second_over_depth, random_state=0)
+    second_over_model = second_over_model.fit(overstats.values, overresults)
 
     best_under_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=best_under_samples, max_depth=best_under_depth, random_state=0)
     best_under_model = best_under_model.fit(understats.values, underresults)
+    second_under_model = DecisionTreeClassifier(criterion='gini', min_samples_leaf=second_under_samples, max_depth=second_under_depth, random_state=0)
+    second_under_model = second_under_model.fit(understats.values, underresults)
 
     tree.plot_tree(best_over_model, feature_names=stat_headers)
     plt.savefig("/Users/rayani1203/Downloads/overdecisiontree.pdf")
@@ -238,7 +250,9 @@ def find_best_ML_models():
 
     return {
         "over": best_over_model,
-        "under": best_under_model
+        "second_over": second_over_model,
+        "under": best_under_model,
+        "second_under": second_under_model
     }
 
 def web_crawl(opposition, position, stat, driver):
@@ -548,6 +562,8 @@ def analyze_future_odds():
     ML_dic = find_best_ML_models()
     over_model = ML_dic['over']
     under_model = ML_dic['under']
+    second_over_model = ML_dic['second_over']
+    second_under_model = ML_dic['second_under']
 
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-1}-picks.csv', 'w', encoding='UTF-8')
     writer  = csv.writer(file)
@@ -560,8 +576,10 @@ def analyze_future_odds():
     print()
     for stat in overs:
         prediction_val = round(over_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
+        second_prediction = round(second_over_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
+        average_prediction = round((prediction_val+second_prediction)/2.0, 2)
         print(f"{stat.player} over {stat.line} {stat.stat} at {stat.over}        |    {round(stat.hit * 100, 1)}%     |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%   |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, prediction_val, round(prediction_val/100*stat.over, 2)])
+        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.over, 2)])
 
     writer.writerow([])
     header = ['Best Under Picks']
@@ -574,8 +592,10 @@ def analyze_future_odds():
     print()
     for stat in unders:
         prediction_val = round(under_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
+        second_prediction = round(second_under_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
+        average_prediction = round((prediction_val + second_prediction)/2.0, 2)
         print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, prediction_val, round(prediction_val/100*stat.under, 2)])
+        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.under, 2)])
     print()
     print("--------------- Downloaded your picks as picks.csv in Downloads! ----------------")
     print()
