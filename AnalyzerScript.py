@@ -145,6 +145,7 @@ stat_num = {
 
 
 apiMutex = Lock()
+ballMutex = Lock()
 countLock = Lock()
 global counter
 counter = 0
@@ -308,9 +309,11 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
         return
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
-            res_json = response.json()
-            success = True
+            with ballMutex:
+                time.sleep(2)
+                response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
+                res_json = response.json()
+                success = True
         except:
             print("balldontlie API request failed, trying again in 10 seconds")
             time.sleep(10)
@@ -337,11 +340,13 @@ def player_thread(player, oldYear, oldMonth, oldDate, playerResults):
     success = False
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonthStr}-{oldDateStr}", headers={'Authorization': config.ball_key})
-            res_json = response.json()
-            success = True
+            with ballMutex:
+                time.sleep(2)
+                response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player.id}&start_date={oldYear}-{oldMonthStr}-{oldDateStr}", headers={'Authorization': config.ball_key})
+                res_json = response.json()
+                success = True
         except:
-            print("API request failed, trying again in 10 seconds")
+            print("BDL API request failed, trying again in 10 seconds")
             time.sleep(10)
     data = res_json['data']
     game_count = 0
@@ -615,12 +620,14 @@ def analyze_row(row, won, lost, date):
         return
     while not success and count < 3:
         try:            
-            response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
-            res_json = response.json()
-            success = True
+            with ballMutex:
+                time.sleep(2)
+                response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
+                res_json = response.json()
+                success = True
         except:
             count += 1
-            print("API request failed, trying again in 10 seconds")
+            print("BDL API request failed, trying again in 10 seconds")
             time.sleep(10)
     if count == 3:
         return
@@ -637,11 +644,13 @@ def analyze_row(row, won, lost, date):
 
     while not success:
         try:
-            response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonthStr}-{dateStr}&end_date={currYear}-{currMonthStr}-{dateStr}", headers={'Authorization': config.ball_key})
-            res_json = response.json()
-            success = True
+            with ballMutex:
+                time.sleep(2)
+                response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonthStr}-{dateStr}&end_date={currYear}-{currMonthStr}-{dateStr}", headers={'Authorization': config.ball_key})
+                res_json = response.json()
+                success = True
         except:
-            print("API request failed, trying again in 10 seconds")
+            print("BDL API request failed, trying again in 10 seconds")
             time.sleep(10)
     try:
         data = res_json['data'][0]
