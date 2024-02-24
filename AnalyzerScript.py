@@ -203,8 +203,8 @@ def find_best_ML_models():
     under_accuracy = 0
     best_under_depth = 0
     best_under_samples = 0
-    second_under_depth = 0
-    second_under_samples = 0
+    second_under_depth = 5
+    second_under_samples = 1
     max_under_accuracy = 0
     while retry_count < 5:
         understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
@@ -588,7 +588,10 @@ def analyze_future_odds():
         second_prediction = round(second_over_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
         average_prediction = round((prediction_val+second_prediction)/2.0, 2)
         print(f"{stat.player} over {stat.line} {stat.stat} at {stat.over}        |    {round(stat.hit * 100, 1)}%     |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%   |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.over, 2)])
+        row = [stat.player, stat.stat, stat.line, stat.over, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.over, 2)]
+        if round(average_prediction/100*stat.over, 2) >= 1:
+            row.append('y')
+        writer.writerow(row)
 
     writer.writerow([])
     header = ['Best Under Picks']
@@ -604,7 +607,10 @@ def analyze_future_odds():
         second_prediction = round(second_under_model.predict_proba([[stat_num[stat.stat], round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense]])[0][1]*100, 1)
         average_prediction = round((prediction_val + second_prediction)/2.0, 2)
         print(f"{stat.player} under {stat.line} {stat.stat} at {stat.under}        |     {round(stat.hit * 100, 1)}%    |    {round(((stat.spread_diff/ stat.line)-1)*100, 1)}%  |    {round(stat.spread_diff, 1)}     |     {stat.defense}")
-        writer.writerow([stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.under, 2)])
+        row = [stat.player, stat.stat, stat.line, stat.under, round(stat.hit * 100, 1), round(((stat.spread_diff/ stat.line)-1)*100, 1), round(stat.spread_diff, 1), stat.defense, average_prediction, round(average_prediction/100*stat.under, 2)]
+        if round(average_prediction/100*stat.under, 2) >= 1:
+            row.append('y')
+        writer.writerow(row)
     print()
     print("--------------- Downloaded your picks as picks.csv in Downloads! ----------------")
     print()
@@ -621,7 +627,6 @@ def analyze_row(row, won, lost, date):
     while not success and count < 3:
         try:            
             with ballMutex:
-                time.sleep(2)
                 response = requests.get(f"https://api.balldontlie.io/v1/players/?first_name={name_list[0]}&last_name={name_list[1]}", headers={'Accept': 'application/json', 'Authorization': config.ball_key})
                 res_json = response.json()
                 success = True
@@ -645,7 +650,6 @@ def analyze_row(row, won, lost, date):
     while not success:
         try:
             with ballMutex:
-                time.sleep(2)
                 response = requests.get(f"https://api.balldontlie.io/v1/stats?player_ids[]={player_id}&start_date={currYear}-{currMonthStr}-{dateStr}&end_date={currYear}-{currMonthStr}-{dateStr}", headers={'Authorization': config.ball_key})
                 res_json = response.json()
                 success = True
@@ -903,6 +907,7 @@ def add_dataset():
         row.pop()
         row.pop()
         row.pop()
+        row.pop()
         row[0] = stat_num[row[0]]
         row.append('1')
         if float(row[1]) >= 70:
@@ -913,6 +918,7 @@ def add_dataset():
         del row[3]
         del row[0]
         del row[1]
+        row.pop()
         row.pop()
         row.pop()
         row.pop()
