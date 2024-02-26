@@ -169,13 +169,13 @@ def find_best_ML_models():
     understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
 
     max_over_accuracy = 0
-    best_over_depth = 0
-    best_over_samples = 0
-    second_over_depth = 0
-    second_over_samples = 0
+    best_over_depth = 5
+    best_over_samples = 1
+    second_over_depth = 4
+    second_over_samples = 1
     retry_count = 0
     over_accuracy = 0
-    while retry_count < 5:
+    while retry_count < 5 and second_over_depth == 5 or second_over_samples == 1:
         overstats_train, overstats_test, overresults_train, overresults_test = train_test_split(overstats, overresults, test_size=0.2)
         max_depth = 5
         min_samples = 1
@@ -201,12 +201,12 @@ def find_best_ML_models():
 
     retry_count = 0
     under_accuracy = 0
-    best_under_depth = 0
-    best_under_samples = 0
+    best_under_depth = 5
+    best_under_samples = 1
     second_under_depth = 5
     second_under_samples = 1
     max_under_accuracy = 0
-    while retry_count < 5:
+    while retry_count < 5 and second_under_depth == 5 and second_under_samples == 1:
         understats_train, understats_test, underresults_train, underresults_test = train_test_split(understats, underresults, test_size=0.2)
         max_depth = 5
         min_samples = 1
@@ -839,9 +839,11 @@ def analyze_past_picks():
     reader  = csv.reader(file)
     for row in reader:
         print(row)
+        if len(row) < 1:
+            continue
         if row[0] == 'Pick Results:':
             break
-        if len(row) < 8:
+        if len(row) < 11:
             continue
         if row[10].capitalize() == 'Y':
             analyze_row(row, won, lost, currDate-2)
@@ -939,3 +941,5 @@ match res:
         analyze_past_picks()
     case 'a':
         add_dataset()
+    case 'm':
+        find_best_ML_models()
