@@ -451,11 +451,12 @@ def worker_thread(playerResults, driver, overs, unders):
                         unders.append(player_stat)
                     elif player_stat.defense <= 15 and player_stat.hit <= 0.3:
                         unders.append(player_stat)
-        if len(defenses) > 0:
-                if defenses.count(defenses[0]) > 5:
-                    print("------------------ Web crawling error, restarting script... ------------------")
-                    print(defenses)
-                    return analyze_future_odds()
+        # if len(defenses) > 0:
+            # if defenses.count(defenses[0]) > 5:
+            #     print("------------------ Web crawling error, restarting script... ------------------")
+            #     print(defenses)
+            #     driver.close()
+            #     return analyze_future_odds()
 
 def analyze_future_odds():
     games = []
@@ -896,6 +897,8 @@ def add_dataset():
             break
         if len(row) < 8:
             continue
+        while len(row) > 11:
+            row.pop()
         print(row)
         analyze_row(row, won, lost, date)
     
