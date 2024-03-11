@@ -14,6 +14,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import matplotlib.pyplot as plt
+from calendar import monthrange
 
 class Matchup:
     def __init__(self, home, home_id, home_brief, away, away_id, away_brief, id):
@@ -80,9 +81,11 @@ else:
     currDate = datetime.now().day + 1
 currMonth = datetime.now().month
 currYear = datetime.now().year
-if currDate > 29:
+
+monthLength = monthrange(currYear, currMonth)[1]
+if currDate > monthLength:
     currMonth += 1
-    currDate -= 29
+    currDate -= monthLength
 
 currDateStr = str(currDate)
 currMonthStr = str(currMonth)
