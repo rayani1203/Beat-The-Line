@@ -80,14 +80,14 @@ else:
     currDate = datetime.now().day + 1
 currMonth = datetime.now().month
 currYear = datetime.now().year
-if currDate > 31:
+if currDate > 29:
     currMonth += 1
-    currDate -= 31
+    currDate -= 29
 
 currDateStr = str(currDate)
 currMonthStr = str(currMonth)
 if currDate - 1 < 1:
-    prevDateStr = str(currDate + 30)
+    prevDateStr = str(currDate + 29)
 else:
     prevDateStr = str(currDate - 1)
 if currDate < 10:
@@ -171,7 +171,7 @@ def find_best_ML_models():
     max_over_accuracy = 0
     best_over_depth = 5
     best_over_samples = 1
-    second_over_depth = 4
+    second_over_depth = 5
     second_over_samples = 1
     retry_count = 0
     over_accuracy = 0
