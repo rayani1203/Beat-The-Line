@@ -837,6 +837,7 @@ def analyze_row(row, won, lost, date):
 
 def analyze_past_picks():
     global balance
+    balance = 0.0
     won = []
     lost = []
     file = open(f'/Users/rayani1203/Downloads/{currYear}-{currMonth}-{currDate-2}-picks.csv', encoding='UTF-8')
@@ -883,8 +884,9 @@ def add_dataset():
     while not os.path.isfile(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv"):
         date = input("The specified date does not exist as a sheet, please enter another\n")
 
-    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'r')
+    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'a+')
     reader  = csv.reader(file)
+    writer = csv.writer(file)
     oversfile = open("/Users/rayani1203/Downloads/alloverpicks.csv", "a", )
     overswriter = csv.writer(oversfile)
     undersfile = open("/Users/rayani1203/Downloads/allunderpicks.csv", "a", )
@@ -892,6 +894,8 @@ def add_dataset():
 
     won = []
     lost = []
+    global balance
+    balance = 0.0
 
     for row in reader:
         if len(row) < 1:
@@ -904,7 +908,8 @@ def add_dataset():
             row.pop()
         print(row)
         analyze_row(row, won, lost, date)
-    
+
+    writer.writerows([[], ["Net results of all picks:", balance]])
     overswriter.writerow([])
     underswriter.writerow([])
     
