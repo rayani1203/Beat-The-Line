@@ -884,9 +884,8 @@ def add_dataset():
     while not os.path.isfile(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv"):
         date = input("The specified date does not exist as a sheet, please enter another\n")
 
-    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'a+')
+    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'r')
     reader  = csv.reader(file)
-    writer = csv.writer(file)
     oversfile = open("/Users/rayani1203/Downloads/alloverpicks.csv", "a", )
     overswriter = csv.writer(oversfile)
     undersfile = open("/Users/rayani1203/Downloads/allunderpicks.csv", "a", )
@@ -909,10 +908,14 @@ def add_dataset():
         print(row)
         analyze_row(row, won, lost, date)
 
-    writer.writerows([[], ["Net results of all picks:", balance]])
+    file.close()
+    file = open(f"/Users/rayani1203/Downloads/{currYear}-{currMonth}-{date}-picks.csv", 'a')
+    writer = csv.writer(file)
     overswriter.writerow([])
     underswriter.writerow([])
     
+    balance = 0.0
+
     for row in won:
         del row[3]
         del row[0]
@@ -928,6 +931,7 @@ def add_dataset():
         else:
             underswriter.writerow(row)
     for row in lost:
+        balance -= 1
         del row[3]
         del row[0]
         del row[1]
@@ -941,6 +945,11 @@ def add_dataset():
             overswriter.writerow(row)
         else:
             underswriter.writerow(row)
+    
+    writer.writerows([[], ["Net results of all picks:", balance]])
+    file.close()
+    undersfile.close()
+    oversfile.close()
 
 
 input("Hello and welcome to Rayan's Odds Analyzer, your friendly neighborhood script designed to help you beat the odds every day!\nTo continue, press Enter.\n")
