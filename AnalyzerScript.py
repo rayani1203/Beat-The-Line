@@ -913,8 +913,6 @@ def add_dataset():
     writer = csv.writer(file)
     overswriter.writerow([])
     underswriter.writerow([])
-    
-    balance = 0.0
 
     for row in won:
         del row[3]
