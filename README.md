@@ -26,12 +26,12 @@ Allows users to re-run the script in the evening to see which bets from the reco
 
 <h3>Installation</h3>
 <h5>Prerequisites</h5>
-\n- Python 3.x
-\n- "requests" for API interaction
-- "selenium" for web crawling
-- "scikit-learn" for machine learning
-- "threading" for multithreading functionality
+- Python 3.x  <br />
+- "requests" for API interaction  <br />
+- "selenium" for web crawling  <br />
+- "scikit-learn" for machine learning  <br />
+- "threading" for multithreading functionality  <br />
 
 <h6>Setup Selenium WebDriver</h6>
-You need to have the appropriate WebDriver for your browser. For example, for Chrome:
-Extract and place the chromedriver executable in your project directory or add it to your system PATH.
+You need to have the appropriate WebDriver for your browser. For example, for Chrome:  <br />
+Extract and place the chromedriver executable in your project directory or add it to your system PATH.  
