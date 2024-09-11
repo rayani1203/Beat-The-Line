@@ -24,6 +24,21 @@ Predicts the probability of success for each recommended bet based on gathered m
 <h4>Post-Game Analysis:</h4>
 Allows users to re-run the script in the evening to see which bets from the recommendations hit.
 
+<h2>Usage</h2>
+Once run in the morning, the daily bets are pulled and relevant bets with a sufficient hit rate have all their stats analyzed / web crawled as necessary, creating a sheet that looks as follows:
+
+<img width="1112" alt="image" src="https://github.com/user-attachments/assets/e0b8323b-501c-4389-aac6-e33810ab0712">
+
+The ML prediction % column is determined by testing models of various depth and parameters to find the most optimal model, then seeing the % chance of success given by the ML model. The expected return column is then calculated by multiplying this % success by the odds return of that given bet. If this expected return is >1 unit, then that bet is "placed" by placing a Y in the last column.
+
+An example of the trained ML model is as follows (for over the line bets, since the process for determining a good over bet is different than that for under the line):
+[overdecisiontree.pdf](https://github.com/user-attachments/files/16956621/overdecisiontree.pdf)
+
+Finally, in the evening the script can be run again to tally the results of the day by checking the performance of the model's placed bets. This looks as follows:
+<img width="1095" alt="image" src="https://github.com/user-attachments/assets/d4c03af3-6450-4d11-a8cc-bf127def46a9">
+The pick results at the top indicates a win of 14 units today.
+
+
 <h3>Installation</h3>
 <h5>Prerequisites</h5>
 - Python 3.x  <br />
