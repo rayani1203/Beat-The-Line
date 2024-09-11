@@ -26,8 +26,8 @@ Allows users to re-run the script in the evening to see which bets from the reco
 
 <h3>Installation</h3>
 <h5>Prerequisites</h5>
-- Python 3.x
-- "requests" for API interaction
+\n- Python 3.x
+\n- "requests" for API interaction
 - "selenium" for web crawling
 - "scikit-learn" for machine learning
 - "threading" for multithreading functionality
